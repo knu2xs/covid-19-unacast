@@ -1,0 +1,19 @@
+name: covid-19-unacast
+
+channels:
+  - esri
+  - conda-forge
+  - knu2xs
+
+dependencies:
+  - arcgis==1.8.0
+  - dask
+  - nodejs
+  - pandas
+  - pillow
+  - python-dotenv
+  - shapely
+  - swifter
+  - pip:
+    - pyjanitor
+  
