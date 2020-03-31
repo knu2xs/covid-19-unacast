@@ -19,13 +19,14 @@
     A copy of the license is available in the repository's
     LICENSE file.
 """
+import arcpy
 from datetime import datetime
 import os
 import sys
 from pathlib import Path
 
 # facilitate using local unacast package resources
-sys.path.insert(0, os.path.abspath('../src'))
+sys.path.append(os.path.abspath('../src'))
 import unacast
 
 # paths to common data locations - NOTE: to convert any path to a raw string, simply use str(path_instance)
@@ -42,7 +43,16 @@ gdb_int = data_int/'interim.gdb'
 gdb_out = data_out/'processed.gdb'
 
 # resource variables
-unacast_csv_pth = data_raw/'covid_sds_full_2020-03-27.csv'
+unacast_csv_pth = data_raw/'covid_sds_full_2020-03-30_jm.csv'
 itm_id = '7566e0221e5646f99ea249a197116605'
+full_fc = gdb_out / 'unacast'
+last_day_fc = gdb_out/'unacast_last_day'
 
-# create an output feature class with the
+# create an output feature class with the full dataset
+full_df = unacast.create_update_dataframe(itm_id, unacast_csv_pth)
+if arcpy.Exists(str(full_fc)):
+    arcpy.management.Delete(str(full_fc))
+full_df.spatial.to_featureclass(full_fc)
+
+# filter to just the most recent day
+
