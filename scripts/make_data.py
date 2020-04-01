@@ -32,27 +32,69 @@ import unacast
 # paths to common data locations - NOTE: to convert any path to a raw string, simply use str(path_instance)
 project_parent = Path('./').absolute().parent
 
-data_dir = project_parent/'data'
+data_dir = os.path.join(project_parent, "data")
 
-data_raw = data_dir/'raw'
-data_int = data_dir/'interim'
-data_out = data_dir/'processed'
+data_raw = os.path.join(data_dir, "raw")
+data_int = os.path.join(data_dir, "interim")
+data_out = os.path.join(data_dir, "processed")
 
-gdb_raw = data_raw/'raw.gdb'
-gdb_int = data_int/'interim.gdb'
-gdb_out = data_out/'processed.gdb'
+gdb_raw = os.path.join(data_raw, "raw.gdb")
+gdb_int = os.path.join(data_int, "interim.gdb")
+gdb_out = os.path.join(data_out, "processed.gdb")
 
-# resource variables
-unacast_csv_pth = data_raw/'covid_sds_full_2020-03-30_jm.csv'
-itm_id = '7566e0221e5646f99ea249a197116605'
-full_fc = gdb_out / 'unacast'
-last_day_fc = gdb_out/'unacast_last_day'
+# Input variables (must pre-exist)
+unacast_csv_path = os.path.join(data_raw, "data000000000000.csv")
+item_id = "7566e0221e5646f99ea249a197116605"
+full_fc = os.path.join(gdb_out, "unacast")
+last_day_fc = os.path.join(gdb_out, "unacast_last_day")
+generalized_fc = os.path.join(gdb_out, "unacast_generalized")
 
-# create an output feature class with the full dataset
-full_df = unacast.create_update_dataframe(itm_id, unacast_csv_pth)
-if arcpy.Exists(str(full_fc)):
-    arcpy.management.Delete(str(full_fc))
+
+# Get county series
+print("Converting counties feature layer item to pandas series: {}".format(item_id))
+county_series = unacast.get_county_geometry_series(item_id)
+# Get Unacast data frame
+print("Converting input csv to pandas data frame: {}".format(unacast_csv_path))
+una_df = unacast.load_unacast_csv(unacast_csv_path, None)
+
+# Create data frame of all Uncast data
+print("Join county series to Unacast data frame")
+full_df = una_df.join(county_series, on="county_fips")
+
+
+
+# Create feautre class of all Unacast data
+print("Create feature class of all Unacast data")
+if arcpy.Exists(full_fc):
+    arcpy.Delete_management(full_fc)
 full_df.spatial.to_featureclass(full_fc)
 
-# filter to just the most recent day
 
+
+# Create feautre class of last day's Unacast data
+print("Create feature class of last day's Unacast data")
+day_df = full_df[full_df.localeventdate == full_df.localeventdate.max()]
+if arcpy.Exists(last_day_fc):
+    arcpy.Delete_management(last_day_fc)
+day_df.spatial.to_featureclass(last_day_fc)
+
+
+
+# Pivot table to create feature class with each date as its own field
+print("Pivot full dataframe to create generalized data frame")
+pivot_df = full_df.pivot(index="county_fips", columns="localeventdate", values=["grade_total", "grade_distance",
+                                                                                        "grade_visitation",
+                                                                                        "n_grade_total",
+                                                                                        "n_grade_distance",
+                                                                                        "n_grade_visitation"])
+# Join pivoted data with county series
+print("Join county series to pivoted data frame")
+generalized_df = pivot_df.join(county_series, on="county_fips").clean_names()
+# Set geometry field
+generalized_df.spatial.set_geometry("shape")
+# Reset index to ensure county fips field is written to output feature class
+generalized_df.reset_index(level=0, inplace=True)
+print("Create feature class of generalized Unacast data")
+if arcpy.Exists(generalized_fc):
+    arcpy.Delete_management(generalized_fc)
+generalized_df.spatial.to_featureclass(generalized_fc)

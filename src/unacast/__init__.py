@@ -64,7 +64,8 @@ def load_unacast_csv(unacast_csv_path: [Path, str], last_date: bool = False,
         if col in una_df.columns.values:
             una_df[col] = pd.to_datetime(una_df[col])
 
-    if 'date' in una_df.columns and
+    if 'date' in una_df.columns and 'localeventdate' not in una_df.columns:
+        una_df.rename(columns={'date': 'localeventdate'}, inplace=True)
 
     # remove the unneeded county column
     if 'county_centroid' in una_df.columns:
