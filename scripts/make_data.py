@@ -24,6 +24,7 @@ from datetime import datetime
 import os
 import sys
 from pathlib import Path
+import pandas as pd
 
 # facilitate using local unacast package resources
 sys.path.append(os.path.abspath('../src'))
@@ -43,7 +44,7 @@ gdb_int = os.path.join(data_int, "interim.gdb")
 gdb_out = os.path.join(data_out, "processed.gdb")
 
 # Input variables (must pre-exist)
-unacast_csv_path = os.path.join(data_raw, "data000000000000.csv")
+unacast_csv_path = os.path.join(data_raw, "covid_sds_full_2020_04_01.csv")
 item_id = "7566e0221e5646f99ea249a197116605"
 full_fc = os.path.join(gdb_out, "unacast")
 last_day_fc = os.path.join(gdb_out, "unacast_last_day")
@@ -59,7 +60,7 @@ una_df = unacast.load_unacast_csv(unacast_csv_path, None)
 
 # Create data frame of all Uncast data
 print("Join county series to Unacast data frame")
-full_df = una_df.join(county_series, on="county_fips")
+full_df = una_df.join(county_series, on="county_fips", how="right")
 
 
 
@@ -73,15 +74,18 @@ full_df.spatial.to_featureclass(full_fc)
 
 # Create feautre class of last day's Unacast data
 print("Create feature class of last day's Unacast data")
-day_df = full_df[full_df.localeventdate == full_df.localeventdate.max()]
+max_day_df = full_df[full_df.localeventdate == full_df.localeventdate.max()]
+# Keep null values so that final output contains all counties
+null_df = full_df[full_df.localeventdate.isnull()]
+day_df = pd.concat([max_day_df, null_df])
 if arcpy.Exists(last_day_fc):
     arcpy.Delete_management(last_day_fc)
 day_df.spatial.to_featureclass(last_day_fc)
 
 
 
-# Pivot table to create feature class with each date as its own field
-print("Pivot full dataframe to create generalized data frame")
+# Create feature class with each date as its own field by pivoting data frame
+print("Pivot full data frame to create generalized data frame")
 pivot_df = full_df.pivot(index="county_fips", columns="localeventdate", values=["grade_total", "grade_distance",
                                                                                         "grade_visitation",
                                                                                         "n_grade_total",
@@ -89,7 +93,9 @@ pivot_df = full_df.pivot(index="county_fips", columns="localeventdate", values=[
                                                                                         "n_grade_visitation"])
 # Join pivoted data with county series
 print("Join county series to pivoted data frame")
-generalized_df = pivot_df.join(county_series, on="county_fips").clean_names()
+generalized_df = pivot_df.join(county_series, on="county_fips", how="right").clean_names()
+# Drop field created by null localeventdate
+generalized_df.drop(columns=["_grade_total_nat_"], inplace=True)
 # Set geometry field
 generalized_df.spatial.set_geometry("shape")
 # Reset index to ensure county fips field is written to output feature class
