@@ -44,7 +44,7 @@ gdb_int = os.path.join(data_int, "interim.gdb")
 gdb_out = os.path.join(data_out, "processed.gdb")
 
 # Input variables (must pre-exist)
-unacast_csv_path = os.path.join(data_raw, "covid_sds_full_2020_04_01.csv")
+unacast_csv_path = os.path.join(data_raw, "covid_sds_full_2020_04_06.csv")
 item_id = "7566e0221e5646f99ea249a197116605"
 full_fc = os.path.join(gdb_out, "unacast")
 last_day_fc = os.path.join(gdb_out, "unacast_last_day")
@@ -78,6 +78,8 @@ max_day_df = full_df[full_df.localeventdate == full_df.localeventdate.max()]
 # Keep null values so that final output contains all counties
 null_df = full_df[full_df.localeventdate.isnull()]
 day_df = pd.concat([max_day_df, null_df])
+# Add and calc int field to store integer version of county fips
+day_df["county_fips_int"] = pd.to_numeric(day_df["county_fips"], downcast="integer")
 if arcpy.Exists(last_day_fc):
     arcpy.Delete_management(last_day_fc)
 day_df.spatial.to_featureclass(last_day_fc)
@@ -86,16 +88,13 @@ day_df.spatial.to_featureclass(last_day_fc)
 
 # Create feature class with each date as its own field by pivoting data frame
 print("Pivot full data frame to create generalized data frame")
-pivot_df = full_df.pivot(index="county_fips", columns="localeventdate", values=["grade_total", "grade_distance",
-                                                                                        "grade_visitation",
-                                                                                        "n_grade_total",
-                                                                                        "n_grade_distance",
-                                                                                        "n_grade_visitation"])
+pivot_df = full_df.pivot(index="county_fips", columns="localeventdate", values=["daily_distance_diff",
+                                                                                "daily_visitation_diff"])
 # Join pivoted data with county series
 print("Join county series to pivoted data frame")
 generalized_df = pivot_df.join(county_series, on="county_fips", how="right").clean_names()
-# Drop field created by null localeventdate
-generalized_df.drop(columns=["_grade_total_nat_"], inplace=True)
+# Drop columns created by null localeventdate
+generalized_df.drop(columns=["_daily_distance_diff_nat_", "_daily_visitation_diff_nat_"], inplace=True)
 # Set geometry field
 generalized_df.spatial.set_geometry("shape")
 # Reset index to ensure county fips field is written to output feature class
