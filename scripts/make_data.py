@@ -44,7 +44,7 @@ gdb_int = os.path.join(data_int, "interim.gdb")
 gdb_out = os.path.join(data_out, "processed.gdb")
 
 # Input variables (must pre-exist)
-unacast_csv_path = os.path.join(data_raw, "covid_sds_full_2020_04_06.csv")
+unacast_csv_path = os.path.join(data_raw, "covid_sds_full_2020_04_14.csv")
 item_id = "7566e0221e5646f99ea249a197116605"
 full_fc = os.path.join(gdb_out, "unacast")
 last_day_fc = os.path.join(gdb_out, "unacast_last_day")
